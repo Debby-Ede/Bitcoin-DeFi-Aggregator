@@ -139,3 +139,61 @@
     )
   )
 )
+
+(define-public (toggle-protocol (protocol-id uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    
+    (let ((protocol (unwrap! (map-get? protocols { protocol-id: protocol-id }) err-protocol-not-whitelisted)))
+      (map-set protocols
+        { protocol-id: protocol-id }
+        (merge protocol { enabled: (not (get enabled protocol)) })
+      )
+      (ok (not (get enabled protocol)))
+    )
+  )
+)
+
+(define-public (add-token (name (string-ascii 64)) (symbol (string-ascii 10)) (decimals uint) (token-contract principal))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    
+    (let ((token-id (var-get next-token-id)))
+      (map-set supported-tokens
+        { token-id: token-id }
+        {
+          name: name,
+          symbol: symbol,
+          decimals: decimals,
+          token-contract: token-contract
+        }
+      )
+      (var-set next-token-id (+ token-id u1))
+      (ok token-id)
+    )
+  )
+)
+
+(define-public (set-protocol-token-support (protocol-id uint) (token-id uint) (is-supported bool))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (asserts! (is-some (map-get? protocols { protocol-id: protocol-id })) err-protocol-not-whitelisted)
+    (asserts! (is-some (map-get? supported-tokens { token-id: token-id })) (err u112))
+    
+    (map-set protocol-token-support
+      { protocol-id: protocol-id, token-id: token-id }
+      { supported: is-supported }
+    )
+    (ok is-supported)
+  )
+)
+
+(define-public (set-protocol-fee (new-fee-bps uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (asserts! (<= new-fee-bps u10000) (err u113))  ;; Ensure fee is not greater than 100%
+    
+    (var-set protocol-fee-bps new-fee-bps)
+    (ok new-fee-bps)
+  )
+)
