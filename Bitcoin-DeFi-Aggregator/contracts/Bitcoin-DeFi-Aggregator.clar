@@ -197,3 +197,89 @@
     (ok new-fee-bps)
   )
 )
+
+(define-public (set-fee-recipient (new-recipient principal))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set fee-recipient new-recipient)
+    (ok new-recipient)
+  )
+)
+
+(define-public (add-yield-strategy 
+  (name (string-ascii 64)) 
+  (description (string-ascii 256)) 
+  (risk-level uint) 
+  (target-yield uint)
+  (min-deposit uint)
+  (max-deposit uint)
+  (rebalance-frequency uint)
+)
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (asserts! (and (>= risk-level u1) (<= risk-level u5)) (err u114))
+    
+    (let ((strategy-id (var-get next-strategy-id)))
+      (map-set yield-strategies
+        { strategy-id: strategy-id }
+        {
+          name: name,
+          description: description,
+          risk-level: risk-level,
+          enabled: true,
+          target-yield: target-yield,
+          min-deposit: min-deposit,
+          max-deposit: max-deposit,
+          rebalance-frequency: rebalance-frequency
+        }
+      )
+      (var-set next-strategy-id (+ strategy-id u1))
+      (ok strategy-id)
+    )
+  )
+)
+
+(define-public (toggle-strategy (strategy-id uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    
+    (let ((strategy (unwrap! (map-get? yield-strategies { strategy-id: strategy-id }) (err u115))))
+      (map-set yield-strategies
+        { strategy-id: strategy-id }
+        (merge strategy { enabled: (not (get enabled strategy)) })
+      )
+      (ok (not (get enabled strategy)))
+    )
+  )
+)
+
+(define-public (update-protocol-yield (protocol-id uint) (new-yield uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (asserts! (is-some (map-get? protocols { protocol-id: protocol-id })) err-protocol-not-whitelisted)
+    
+    (let ((protocol (unwrap-panic (map-get? protocols { protocol-id: protocol-id }))))
+      (map-set protocols
+        { protocol-id: protocol-id }
+        (merge protocol { current-yield: new-yield })
+      )
+      (ok new-yield)
+    )
+  )
+)
+
+(define-public (emergency-pause)
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set contract-paused true)
+    (ok true)
+  )
+)
+
+(define-public (emergency-unpause)
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set contract-paused false)
+    (ok true)
+  )
+)
